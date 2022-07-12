@@ -1,8 +1,5 @@
-from ast import For
 import os
-from os import path as os_path, access, scandir
-import shutil
-from transformers import is_optuna_available
+from os import path as os_path, access
 import xlwings as xw
 
 
@@ -155,9 +152,9 @@ class ExcelFileMerger(PathContent, FileMerger):
 
   def merge_files(self):
 
-    files_per_dir = self.get_content_structure(file_extensions = ExcelFileMerger.ALLOWED_FILE_EXTENSIONS).items()
+    files_per_dir = self.get_content_structure(file_extensions = ExcelFileMerger.ALLOWED_FILE_EXTENSIONS)
 
-    for dir_path, file_name in files_per_dir:
+    for dir_path, file_names in files_per_dir.items():
       output_dir_path = dir_path.replace(self.source_path_instance.path, self.target_path_instance.path)
       os.makedirs(output_dir_path, exist_ok = True)
 
@@ -165,7 +162,7 @@ class ExcelFileMerger(PathContent, FileMerger):
       current_output_book = app.books.add()
       current_output_book.sheets[0].name = 'SHEET_TO_BE_DELETED'
 
-      for file_name in file_name:
+      for file_name in file_names:
         file_path = f'{dir_path}/{file_name}'
         current_input_book = xw.Book(file_path)
 
@@ -177,16 +174,5 @@ class ExcelFileMerger(PathContent, FileMerger):
       current_output_book.app.quit()
 
 
+
 ExcelFileMerger(Path('./folder1'), Path('C:/Users/danee/Downloads/testfolder')).merge_files()
-
-
-
-
-
-  
-
-
-
-
-  
-
