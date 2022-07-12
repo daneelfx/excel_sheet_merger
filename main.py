@@ -5,6 +5,8 @@ import shutil
 from transformers import is_optuna_available
 import xlwings as xw
 
+
+
 class Path:
   
   def __init__(self, path):
@@ -80,6 +82,35 @@ class PathContent:
       if path_item['is_dir']:
         yield from PathContent.get_flattened_content_iterator(path_item['content'])
 
+  def _iterate_over_content(self, content_iterator, *, callback):
+
+      for path_item in content_iterator:
+        if path_item['is_dir']:
+          self._iterate_over_content(path_item['content'], callback = callback)
+        else:  
+          callback(path_item['path'])
+
+  def get_content_structure(self, *, file_extensions):
+
+    filepaths_per_dir = {}
+
+    def _content_builder_callback(input_path_str):
+      nonlocal filepaths_per_dir
+
+      if input_path_str.split('.')[-1] in file_extensions:
+        parts_reversed = input_path_str[:: -1].split('/', 1)
+        dir_path = parts_reversed[-1][:: -1]
+        file_path = parts_reversed[0][:: -1]
+
+        if dir_path in filepaths_per_dir:
+          filepaths_per_dir[dir_path].append(file_path)        
+        else:
+          filepaths_per_dir[dir_path] = [file_path]
+
+    self._iterate_over_content(self.content_iterator, callback = _content_builder_callback)
+
+    return filepaths_per_dir
+
 
 
 class FileMerger:
@@ -111,75 +142,39 @@ class FileMerger:
   def merge_files(self):
     raise NotImplementedError('ERROR: FileMerger no implementa este método. Use una clase que herede la clase FileMerger')
 
-  def build_content(self, content_iterator, *, callback):
 
-    for path_item in content_iterator:
-      if path_item['is_dir']:
-        self.build_content(path_item['content'], callback = callback)
-      else:  
-        callback(path_item['path'])
 
 class ExcelFileMerger(PathContent, FileMerger):
 
-
-  ALLOWED_FILE_EXTENSIONS = ('xlsx',)
+  ALLOWED_FILE_EXTENSIONS = ('xls', 'xlsx', 'xlsm')
   
   def __init__(self, source_path_instance, target_path_instance):
     super().__init__(source_path_instance)
     super(PathContent, self).__init__(self.path_instance, target_path_instance)
 
+
   def merge_files(self):
 
-    excel_files_per_dir = {}
-    current_input_book = None
-    current_output_book = None
-    output_dir_path = None
+    files_per_dir = self.get_content_structure(file_extensions = ExcelFileMerger.ALLOWED_FILE_EXTENSIONS).items()
 
-    def _save_book_and_reset():
-      nonlocal excel_files_per_dir ,current_input_book, current_output_book
+    for dir_path, file_name in files_per_dir:
+      output_dir_path = dir_path.replace(self.source_path_instance.path, self.target_path_instance.path)
+      os.makedirs(output_dir_path, exist_ok = True)
 
-      if not (current_input_book is None or current_output_book is None):
-        saving_before_change_path = list(excel_files_per_dir.keys())[-1].replace(self.source_path_instance.path, self.target_path_instance.path)
-        current_output_book.save(f'{saving_before_change_path}/not_a_random_name.xlsx')
-        current_output_book.app.quit()
-        current_input_book = None
-        current_output_book = None
+      app = xw.App(visible = True)
+      current_output_book = app.books.add()
+      current_output_book.sheets[0].name = 'SHEET_TO_BE_DELETED'
 
-    def _merge_excel_callback(input_path_str):
-      nonlocal excel_files_per_dir, current_input_book, current_output_book, output_dir_path, _save_book_and_reset
+      for file_name in file_name:
+        file_path = f'{dir_path}/{file_name}'
+        current_input_book = xw.Book(file_path)
 
-      if input_path_str.split('.')[-1] in ExcelFileMerger.ALLOWED_FILE_EXTENSIONS:
-        parts_reversed = input_path_str[:: -1].split('/', 1)
-        dir_path = parts_reversed[-1][:: -1]
-        file_path = parts_reversed[0][:: -1]
-        output_dir_path = dir_path.replace(self.source_path_instance.path, self.target_path_instance.path)
+        for sheet in iter(current_input_book.sheets):
+          sheet.copy(after = current_output_book.sheets[current_output_book.sheets.count - 1])
 
-        if dir_path in excel_files_per_dir:
-          excel_files_per_dir[dir_path].append(file_path)
-          current_input_book = xw.Book(input_path_str)
-
-          for sheet in iter(current_input_book.sheets):
-            sheet.copy(after = current_output_book.sheets[current_output_book.sheets.count - 1])          
-        else:
-          _save_book_and_reset()
-
-          os.makedirs(output_dir_path, exist_ok = True)
-
-          current_input_book = xw.Book(input_path_str)
-          current_output_book = xw.Book()
-          current_output_book.sheets[0].name = 'SHEET_TO_BE_DELETED'
-
-          for sheet in iter(current_input_book.sheets):
-            sheet.copy(after = current_output_book.sheets[current_output_book.sheets.count - 1])
-
-          current_output_book.sheets[0].delete()
-          excel_files_per_dir[dir_path] = [file_path]
-
-    self.build_content(self.content_iterator, callback = _merge_excel_callback)
-
-    _save_book_and_reset()
-
-    print(excel_files_per_dir)
+      current_output_book.sheets[0].delete()
+      current_output_book.save(f'{output_dir_path}/not_a_random_name.xlsx')
+      current_output_book.app.quit()
 
 
 ExcelFileMerger(Path('./folder1'), Path('C:/Users/danee/Downloads/testfolder')).merge_files()
