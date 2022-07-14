@@ -1,6 +1,7 @@
 import os
 from os import path as os_path, access
 import xlwings as xw
+import pandas as pd
 
 
 
@@ -57,9 +58,10 @@ class PathContent:
       relative_path_str = f'{path_str}/{path}'
       is_dir = os_path.isdir(relative_path_str)
       last_modification_date = os_path.getmtime(relative_path_str)
+      creation_date = os_path.getctime(relative_path_str)
       size = os_path.getsize(relative_path_str)
 
-      path_info = {'path': relative_path_str, 'is_dir': is_dir, 'last_mod_date': last_modification_date, 'size': size}
+      path_info = {'path': relative_path_str, 'is_dir': is_dir, 'creation_date': creation_date, 'last_mod_date': last_modification_date, 'size': size}
       
       if is_dir:
         path_info.update({'content': PathContent.get_content_iterator(relative_path_str)})
@@ -84,25 +86,26 @@ class PathContent:
       for path_item in content_iterator:
         if path_item['is_dir']:
           self._iterate_over_content(path_item['content'], callback = callback)
-        else:  
-          callback(path_item['path'])
+        else:
+          callback(path_item)
 
   def get_content_structure(self, *, file_extensions):
 
     filepaths_per_dir = {}
 
-    def _content_builder_callback(input_path_str):
+    def _content_builder_callback(path_item):
       nonlocal filepaths_per_dir
 
-      if input_path_str.split('.')[-1] in file_extensions:
-        parts_reversed = input_path_str[:: -1].split('/', 1)
+      if path_item['path'].split('.')[-1] in file_extensions:
+        parts_reversed = path_item['path'][:: -1].split('/', 1)
         dir_path = parts_reversed[-1][:: -1]
-        file_path = parts_reversed[0][:: -1]
+        file_name = parts_reversed[0][:: -1]
+        path_item_reduced = {'name': file_name, 'creation_date': path_item['creation_date'], 'last_mod_date': path_item['last_mod_date']}
 
         if dir_path in filepaths_per_dir:
-          filepaths_per_dir[dir_path].append(file_path)        
+          filepaths_per_dir[dir_path].append(path_item_reduced)        
         else:
-          filepaths_per_dir[dir_path] = [file_path]
+          filepaths_per_dir[dir_path] = [path_item_reduced]
 
     self._iterate_over_content(self.content_iterator, callback = _content_builder_callback)
 
@@ -152,27 +155,48 @@ class ExcelFileMerger(PathContent, FileMerger):
 
   def merge_files(self):
 
+    def do_merging(files_df):
+      print(files_df)
+      print('**********************', files_df['paper_name'].nunique())
+
     files_per_dir = self.get_content_structure(file_extensions = ExcelFileMerger.ALLOWED_FILE_EXTENSIONS)
 
-    for dir_path, file_names in files_per_dir.items():
-      output_dir_path = dir_path.replace(self.source_path_instance.path, self.target_path_instance.path)
-      os.makedirs(output_dir_path, exist_ok = True)
+    file_values = []
 
-      app = xw.App(visible = True)
-      current_output_book = app.books.add()
-      current_output_book.sheets[0].name = 'SHEET_TO_BE_DELETED'
+    for source_dir_path, files in files_per_dir.items():
+      output_dir_path = source_dir_path.replace(self.source_path_instance.path, self.target_path_instance.path)
 
-      for file_name in file_names:
-        file_path = f'{dir_path}/{file_name}'
-        current_input_book = xw.Book(file_path)
+      for file in files:
+        try:
+          business_number, paper_name, creation_date, start_date, end_date = file['name'].split('.')[0].split('_')
+          file_values.append([source_dir_path, business_number, paper_name, creation_date, start_date, end_date])
+        except ValueError:
+          raise ValueError(f"ERROR: El archivo {file['name']} no tiene el formato apropiado (numeronegocio_nombrepapel_fechacreacion_fechainicio_fechafinal)")
 
-        for sheet in iter(current_input_book.sheets):
-          sheet.copy(after = current_output_book.sheets[current_output_book.sheets.count - 1])
+    filename_parts = pd.DataFrame(file_values, columns = ['source_dir_path', 'business_number', 'paper_name', 'creation_date', 'start_date', 'end_date'])
+    filename_parts.groupby(by = ['source_dir_path', 'business_number']).apply(do_merging)
 
-      current_output_book.sheets[0].delete()
-      current_output_book.save(f'{output_dir_path}/not_a_random_name.xlsx')
-      current_output_book.app.quit()
+        
+        # print(business_name, paper_name, creation_date, start_date, end_date)
 
+      # 
+      # app = xw.App(visible = True)
+      # current_output_book = app.books.add()
+      # current_output_book.sheets[0].name = 'SHEET_TO_BE_DELETED'
+
+      # for file in files:
+      #   file_path = f"{dir_path}/{file['name']}"
+      #   current_input_book = xw.Book(file_path)
+
+      #   for sheet in iter(current_input_book.sheets):
+      #     sheet.copy(after = current_output_book.sheets[current_output_book.sheets.count - 1])
+
+      # current_output_book.sheets[0].delete()
+      # current_output_book.save(f'{output_dir_path}/not_a_random_name.xlsx')
+      # current_output_book.app.quit()
+      #
+
+    # print(files_per_dir)
 
 
 ExcelFileMerger(Path('./folder1'), Path('C:/Users/danee/Downloads/testfolder')).merge_files()
