@@ -1,5 +1,6 @@
 import os
 from os import path as os_path, access
+from sympy import subsets
 import xlwings as xw
 import pandas as pd
 
@@ -156,47 +157,44 @@ class ExcelFileMerger(PathContent, FileMerger):
   def merge_files(self):
 
     def do_merging(files_df):
-      print(files_df)
-      print('**********************', files_df['paper_name'].nunique())
+        files_df = files_df.drop_duplicates(subset = ['business_number', 'paper_name'], keep = 'last')
+        output_dir_path = pd.unique(files_df['source_dir_path'])[0].replace(self.source_path_instance.path, self.target_path_instance.path) 
+        os.makedirs(output_dir_path, exist_ok = True)
+
+        app = xw.App(visible = True)
+        current_output_book = app.books.add()
+        current_output_book.sheets[0].name = 'SHEET_TO_BE_DELETED'
+
+        for _, file_props in files_df.iterrows():
+          source_filepath = f"{file_props['source_dir_path']}/{file_props['business_number']}_{file_props['paper_name']}_{file_props['creation_date']}_{file_props['start_date']}_{file_props['end_date']}.{file_props['extension']}"
+          current_input_book = xw.Book(source_filepath)
+
+          for sheet in iter(current_input_book.sheets):
+            sheet.copy(after = current_output_book.sheets[current_output_book.sheets.count - 1])
+    
+        current_output_book.sheets[0].delete()
+        current_output_book.save(f"{output_dir_path}/{pd.unique(files_df['business_number'])[0]}.xlsx")
+        current_output_book.app.quit()
+
 
     files_per_dir = self.get_content_structure(file_extensions = ExcelFileMerger.ALLOWED_FILE_EXTENSIONS)
 
     file_values = []
 
     for source_dir_path, files in files_per_dir.items():
-      output_dir_path = source_dir_path.replace(self.source_path_instance.path, self.target_path_instance.path)
 
       for file in files:
         try:
-          business_number, paper_name, creation_date, start_date, end_date = file['name'].split('.')[0].split('_')
-          file_values.append([source_dir_path, business_number, paper_name, creation_date, start_date, end_date])
+          fileprops_extension = file['name'].split('.')
+          file_extension = fileprops_extension[1]
+          business_number, paper_name, creation_date, start_date, end_date = fileprops_extension[0].split('_')
+          
+          file_values.append([source_dir_path, business_number, paper_name, creation_date, start_date, end_date, file_extension])
         except ValueError:
           raise ValueError(f"ERROR: El archivo {file['name']} no tiene el formato apropiado (numeronegocio_nombrepapel_fechacreacion_fechainicio_fechafinal)")
 
-    filename_parts = pd.DataFrame(file_values, columns = ['source_dir_path', 'business_number', 'paper_name', 'creation_date', 'start_date', 'end_date'])
+    filename_parts = pd.DataFrame(file_values, columns = ['source_dir_path', 'business_number', 'paper_name', 'creation_date', 'start_date', 'end_date', 'extension'])
     filename_parts.groupby(by = ['source_dir_path', 'business_number']).apply(do_merging)
-
-        
-        # print(business_name, paper_name, creation_date, start_date, end_date)
-
-      # 
-      # app = xw.App(visible = True)
-      # current_output_book = app.books.add()
-      # current_output_book.sheets[0].name = 'SHEET_TO_BE_DELETED'
-
-      # for file in files:
-      #   file_path = f"{dir_path}/{file['name']}"
-      #   current_input_book = xw.Book(file_path)
-
-      #   for sheet in iter(current_input_book.sheets):
-      #     sheet.copy(after = current_output_book.sheets[current_output_book.sheets.count - 1])
-
-      # current_output_book.sheets[0].delete()
-      # current_output_book.save(f'{output_dir_path}/not_a_random_name.xlsx')
-      # current_output_book.app.quit()
-      #
-
-    # print(files_per_dir)
 
 
 ExcelFileMerger(Path('./folder1'), Path('C:/Users/danee/Downloads/testfolder')).merge_files()
