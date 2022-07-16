@@ -48,12 +48,12 @@ class PathContent:
 
   @property
   def content_iterator(self):
+
     path_str = self.path_instance.path
     return PathContent.get_content_iterator(path_str)
 
   @staticmethod
   def get_content_iterator(path_str):
-
     for path in os.listdir(path_str):
       content = []
       relative_path_str = f'{path_str}/{path}'
@@ -83,7 +83,6 @@ class PathContent:
         yield from PathContent.get_flattened_content_iterator(path_item['content'])
 
   def _iterate_over_content(self, content_iterator, *, callback):
-
       for path_item in content_iterator:
         if path_item['is_dir']:
           self._iterate_over_content(path_item['content'], callback = callback)
@@ -91,7 +90,6 @@ class PathContent:
           callback(path_item)
 
   def get_content_structure(self, *, file_extensions):
-
     filepaths_per_dir = {}
 
     def _content_builder_callback(path_item):
@@ -137,7 +135,7 @@ class FileMerger:
   @target_path_instance.setter
   def target_path_instance(self, target_path_instance):
     if not isinstance(target_path_instance, Path):
-      raise TypeError('El argumento ingresado no es de tipo Path')
+      raise TypeError('ERROR: El argumento ingresado no es de tipo Path')
     self._target_path_instance = target_path_instance
 
   def merge_files(self):
@@ -182,13 +180,11 @@ class ExcelFileMerger(PathContent, FileMerger):
     file_values = []
 
     for source_dir_path, files in files_per_dir.items():
-
       for file in files:
         try:
           fileprops_extension = file['name'].split('.')
           file_extension = fileprops_extension[1]
-          business_number, paper_name, creation_date, start_date, end_date = fileprops_extension[0].split('_')
-          
+          business_number, paper_name, creation_date, start_date, end_date = fileprops_extension[0].split('_')          
           file_values.append([source_dir_path, business_number, paper_name, creation_date, start_date, end_date, file_extension])
         except ValueError:
           raise ValueError(f"ERROR: El archivo {file['name']} no tiene el formato apropiado (numeronegocio_nombrepapel_fechacreacion_fechainicio_fechafinal)")
