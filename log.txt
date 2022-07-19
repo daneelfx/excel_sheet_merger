@@ -38,3 +38,15 @@ INFO 2022-07-18 18:32:41,023 El archivo C:/Users/danee/Downloads/testfolder/1999
 INFO 2022-07-18 18:32:44,639 El archivo ./folder1/202203/hola/8888_cuentasxcobrar_20220101_20220101_20220131.xlsx fue leido correctamente y sera usado para consolidacion. Espere confirmacion
 INFO 2022-07-18 18:32:45,965 El archivo ./folder1/202203/hola/8888_revision_20220103_20220101_20220131.xlsx fue leido correctamente y sera usado para consolidacion. Espere confirmacion
 INFO 2022-07-18 18:32:46,304 El archivo C:/Users/danee/Downloads/testfolder/202203/hola/8888_20220718_20220101_20220131.xlsx fue consolidado y guardado
+INFO 2022-07-19 00:39:16,334 ******************************** NUEVA EJECUCION INICIALIZADA ********************************
+ERROR 2022-07-19 00:39:16,339 El archivo ./folder1/New Microsoft Excel Worksheet.xlsx no tiene el formato apropiado y por lo tanto no sera leido
+INFO 2022-07-19 00:39:17,842 El archivo ./folder1/00000_Reserva_20220308_20220301_20220331.xlsm fue leido correctamente y sera usado para consolidacion. Espere confirmacion
+INFO 2022-07-19 00:39:17,917 El archivo C:/Users/danee/Downloads/testfolder/00000_20220719_20220301_20220331.xlsx fue consolidado y guardado
+INFO 2022-07-19 00:39:19,530 El archivo ./folder1/13149_cuentasxcobrar_20220330_20220301_20220331.xlsx fue leido correctamente y sera usado para consolidacion. Espere confirmacion
+INFO 2022-07-19 00:39:19,865 El archivo ./folder1/13149_Reserva_20220324_20220301_20220331.xlsx fue leido correctamente y sera usado para consolidacion. Espere confirmacion
+INFO 2022-07-19 00:39:19,939 El archivo C:/Users/danee/Downloads/testfolder/13149_20220719_20220301_20220331.xlsx fue consolidado y guardado
+INFO 2022-07-19 00:39:21,438 El archivo ./folder1/19999_Patrimonio_20220322_20220301_20220331.xls fue leido correctamente y sera usado para consolidacion. Espere confirmacion
+INFO 2022-07-19 00:39:21,517 El archivo C:/Users/danee/Downloads/testfolder/19999_20220719_20220301_20220331.xlsx fue consolidado y guardado
+INFO 2022-07-19 00:39:23,211 El archivo ./folder1/202203/hola/8888_cuentasxcobrar_20220101_20220101_20220131.xlsx fue leido correctamente y sera usado para consolidacion. Espere confirmacion
+INFO 2022-07-19 00:39:23,441 El archivo ./folder1/202203/hola/8888_revision_20220103_20220101_20220131.xlsx fue leido correctamente y sera usado para consolidacion. Espere confirmacion
+INFO 2022-07-19 00:39:23,521 El archivo C:/Users/danee/Downloads/testfolder/202203/hola/8888_20220719_20220101_20220131.xlsx fue consolidado y guardado

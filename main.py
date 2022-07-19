@@ -189,7 +189,7 @@ class ExcelFileMerger(PathContent, FileMerger):
         print(files_df)
         print('*' * 140)
 
-        app = xw.App(visible = True)
+        app = xw.App(visible = False)
         current_output_book = app.books.add()
         current_output_book.sheets[0].name = 'SHEET_TO_BE_DELETED'
 
@@ -198,12 +198,16 @@ class ExcelFileMerger(PathContent, FileMerger):
           start_date = file_props['start_date'].strftime('%Y%m%d')
           end_date = file_props['end_date'].strftime('%Y%m%d')
           source_filepath = f"{file_props['source_dir_path']}/{file_props['business_number']}_{file_props['paper_name']}_{creation_date}_{start_date}_{end_date}.{file_props['extension']}"
-          current_input_book = xw.Book(source_filepath)
 
-          for sheet in iter(current_input_book.sheets):
-            sheet.copy(after = current_output_book.sheets[current_output_book.sheets.count - 1])
+          try:
+            current_input_book = xw.Book(source_filepath)
 
-          logging.info(f"El archivo {source_filepath} fue leido correctamente y sera usado para consolidacion. Espere confirmacion")
+            for sheet in iter(current_input_book.sheets):
+              sheet.copy(after = current_output_book.sheets[current_output_book.sheets.count - 1])
+
+            logging.info(f"El archivo {source_filepath} fue leido correctamente y sera usado para consolidacion. Espere confirmacion")
+          except:
+            logging.error(f"El archivo {source_filepath} no pudo ser abierto")
 
         current_output_book.sheets[0].delete()
         current_date = datetime.now().strftime('%Y%m%d')
