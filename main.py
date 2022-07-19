@@ -1,6 +1,8 @@
 import os
 from os import path as os_path, access
-from sympy import subsets
+from datetime import datetime, date, timedelta
+import logging
+
 import xlwings as xw
 import pandas as pd
 
@@ -18,10 +20,13 @@ class Path:
   @path.setter
   def path(self, path):
     if not os_path.exists(path):
+      logging.error(f'ERROR: La ruta {path} no fue encontrada')
       raise OSError(f'ERROR: La ruta {path} no fue encontrada')
     if not os_path.isdir(path):
+      logging.error(f'ERROR: La ruta {path} no es un directorio')
       raise NotADirectoryError(f'ERROR: La ruta {path} no es un directorio')
     if not access(path, mode = os.R_OK):
+      logging.error(f'ERROR: No fue posible acceder a la ruta {path}')
       raise PermissionError(f'ERROR: No fue posible acceder a la ruta {path}')
     self._path = path
 
@@ -43,7 +48,7 @@ class PathContent:
   @path_instance.setter
   def path_instance(self, path_instance):
     if not isinstance(path_instance, Path):
-      raise TypeError('El argumento ingresado no es de tipo Path')
+      raise TypeError('ERROR: El argumento ingresado no es de tipo Path')
     self._path_instance = path_instance
 
   @property
@@ -125,7 +130,7 @@ class FileMerger:
   @source_path_instance.setter
   def source_path_instance(self, source_path_instance):
     if not isinstance(source_path_instance, Path):
-      raise TypeError('El argumento ingresado no es de tipo Path')
+      raise TypeError('ERROR: El argumento ingresado no es de tipo Path')
     self._source_path_instance = source_path_instance
 
   @property
@@ -144,7 +149,6 @@ class FileMerger:
 
 
 class ExcelFileMerger(PathContent, FileMerger):
-
   ALLOWED_FILE_EXTENSIONS = ('xls', 'xlsx', 'xlsm')
   
   def __init__(self, source_path_instance, target_path_instance):
@@ -154,25 +158,59 @@ class ExcelFileMerger(PathContent, FileMerger):
 
   def merge_files(self):
 
+    def get_timeframe(start_date, end_date):
+      
+      date_shift = date(end_date.year, end_date.month, 28) + timedelta(days = 4)
+      last_day_of_month = (date_shift - timedelta(days = date_shift.day)).day
+
+      if start_date > end_date:
+        return 'invalid'
+
+      if start_date.month == end_date.month and start_date.year == end_date.year:
+        days_of_difference = end_date.day - start_date.day
+        if days_of_difference + 1 == last_day_of_month:
+          return 'month[complete]'
+        elif not days_of_difference:
+          return 'day[complete]'
+        else:
+          return 'month[incomplete]'
+
+      return 'invalid'
+      
+          
+
     def do_merging(files_df):
-        files_df = files_df.drop_duplicates(subset = ['business_number', 'paper_name'], keep = 'last')
+        
+        files_df = files_df.drop_duplicates(subset = ['paper_name'], keep = 'last')
         output_dir_path = pd.unique(files_df['source_dir_path'])[0].replace(self.source_path_instance.path, self.target_path_instance.path) 
         os.makedirs(output_dir_path, exist_ok = True)
+        
+        print('*' * 140)
+        print(files_df)
+        print('*' * 140)
 
         app = xw.App(visible = True)
         current_output_book = app.books.add()
         current_output_book.sheets[0].name = 'SHEET_TO_BE_DELETED'
 
         for _, file_props in files_df.iterrows():
-          source_filepath = f"{file_props['source_dir_path']}/{file_props['business_number']}_{file_props['paper_name']}_{file_props['creation_date']}_{file_props['start_date']}_{file_props['end_date']}.{file_props['extension']}"
+          creation_date = file_props['creation_date'].strftime('%Y%m%d')
+          start_date = file_props['start_date'].strftime('%Y%m%d')
+          end_date = file_props['end_date'].strftime('%Y%m%d')
+          source_filepath = f"{file_props['source_dir_path']}/{file_props['business_number']}_{file_props['paper_name']}_{creation_date}_{start_date}_{end_date}.{file_props['extension']}"
           current_input_book = xw.Book(source_filepath)
 
           for sheet in iter(current_input_book.sheets):
             sheet.copy(after = current_output_book.sheets[current_output_book.sheets.count - 1])
-    
+
+          logging.info(f"El archivo {source_filepath} fue leido correctamente y sera usado para consolidacion. Espere confirmacion")
+
         current_output_book.sheets[0].delete()
-        current_output_book.save(f"{output_dir_path}/{pd.unique(files_df['business_number'])[0]}.xlsx")
+        current_date = datetime.now().strftime('%Y%m%d')
+        output_filename = f"{output_dir_path}/{pd.unique(files_df['business_number'])[0]}_{current_date}_{start_date}_{end_date}.xlsx"
+        current_output_book.save(output_filename)
         current_output_book.app.quit()
+        logging.info(f"El archivo {output_filename} fue consolidado y guardado")
 
 
     files_per_dir = self.get_content_structure(file_extensions = ExcelFileMerger.ALLOWED_FILE_EXTENSIONS)
@@ -184,13 +222,24 @@ class ExcelFileMerger(PathContent, FileMerger):
         try:
           fileprops_extension = file['name'].split('.')
           file_extension = fileprops_extension[1]
-          business_number, paper_name, creation_date, start_date, end_date = fileprops_extension[0].split('_')          
-          file_values.append([source_dir_path, business_number, paper_name, creation_date, start_date, end_date, file_extension])
+          business_number, paper_name, creation_date, start_date, end_date = fileprops_extension[0].split('_')
+          creation_date = datetime.strptime(creation_date, '%Y%m%d')
+          start_date = datetime.strptime(start_date, '%Y%m%d')
+          end_date = datetime.strptime(end_date, '%Y%m%d')
+          time_frame = get_timeframe(start_date, end_date)
+          file_values.append([source_dir_path, business_number, paper_name, creation_date, start_date, end_date, time_frame, file_extension])
         except ValueError:
-          raise ValueError(f"ERROR: El archivo {file['name']} no tiene el formato apropiado (numeronegocio_nombrepapel_fechacreacion_fechainicio_fechafinal)")
+          logging.error(f"El archivo {source_dir_path}/{file['name']} no tiene el formato apropiado y por lo tanto no sera leido")
 
-    filename_parts = pd.DataFrame(file_values, columns = ['source_dir_path', 'business_number', 'paper_name', 'creation_date', 'start_date', 'end_date', 'extension'])
+    filename_parts = pd.DataFrame(file_values, columns = ['source_dir_path', 'business_number', 'paper_name', 'creation_date', 'start_date', 'end_date', 'time_frame','extension'])
+    print('#' * 140)
+    print(filename_parts)
+    print('#' * 140)
+    filename_parts = filename_parts[filename_parts['time_frame'] == 'month[complete]']
     filename_parts.groupby(by = ['source_dir_path', 'business_number']).apply(do_merging)
 
 
-ExcelFileMerger(Path('./folder1'), Path('C:/Users/danee/Downloads/testfolder')).merge_files()
+if __name__ == '__main__':
+  logging.basicConfig(filename = 'log.txt', format = '%(levelname)s %(asctime)s %(message)s', level = logging.INFO)
+  logging.info(f"{'*' * 32} NUEVA EJECUCION INICIALIZADA {'*' * 32}")
+  ExcelFileMerger(Path('./folder1'), Path('C:/Users/danee/Downloads/testfolder')).merge_files()
